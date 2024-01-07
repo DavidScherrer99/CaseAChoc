@@ -5,11 +5,39 @@ import hmac
 import hashlib
 from binascii import hexlify
 from datetime import datetime, timedelta
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
 SECRET_KEY = b"secret"
 PETZI_DEFAULT_VERSION = "2"
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tickets.db'
+db = SQLAlchemy(app)
+
+class JsonStorage(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    value = db.Column(db.String)
+
+def save_json_to_DB(json_data):
+    try:
+        new_json_storage = JsonStorage(value=json.dumps(json_data))
+        db.session.add(new_json_storage)
+        db.session.commit()
+        return jsonify({"message": "JSON enregistré avec succès"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Erreur lors de l'enregistrement du JSON : {str(e)}"}), 500
+
+def get_json_from_DB(id):
+    try:
+        json_storage = db.session.get(JsonStorage, id)
+        if json_storage:
+            return json_storage.value, 200
+        else:
+            return {"error": f"Aucune donnée trouvée avec l'id: {id}"}, 404
+    except Exception as e:
+        return {"error": f"Erreur lors de la récupération du JSON : {str(e)}"}, 500
 
 
 def is_signature_valid(payload, received_signature_header):
@@ -24,6 +52,7 @@ def is_signature_valid(payload, received_signature_header):
             return False
 
         signed_payload = f"{timestamp}.{payload}"
+    
         expected_signature = calculate_hmac(signed_payload, SECRET_KEY)
 
         received_signature_bytes = bytes.fromhex(received_signature)
@@ -35,8 +64,14 @@ def is_signature_valid(payload, received_signature_header):
 
 
 def calculate_hmac(data, key):
-    secret_key = hashlib.pbkdf2_hmac("sha256", key, b"salt", 100000)
-    return hmac.new(secret_key, data.encode("utf-8"), hashlib.sha256).digest()
+
+    key_bytes = key.encode('utf-8') if isinstance(key, str) else key
+
+    data_bytes = data.encode('utf-8') if isinstance(data, str) else data
+
+    hmac_sha256 = hmac.new(key_bytes, data_bytes, hashlib.sha256)
+
+    return hmac_sha256.digest()
 
 
 @app.route("/store", methods=["POST"])
@@ -56,22 +91,27 @@ def save_json():
 
         try:
             json_data = json.loads(request.get_data().decode("utf-8"))
-            save_json(json_data)
+            save_json_to_DB(json_data)
             return jsonify({"message": "JSON enregistré avec succès"}), 200
         except Exception as e:
             return jsonify({"error": f"Erreur lors de l'enregistrement du JSON : {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Erreur lors de l'enregistrement du JSON : {str(e)}"}), 500
 
+@app.route("/", methods=["GET"])
+def hello_world():
+    return jsonify({"message": "Hello World"}), 200
 
 @app.route("/retrieve/<int:id>", methods=["GET"])
 def get_json(id):
     try:
-        json_data = get_json(id)
+        json_data = get_json_from_DB(id)
         return jsonify({"data": json_data}), 200
     except Exception as e:
-        return jsonify({"error": f"Erreur lors de la récupération du JSON : {str(e)}"}), 500
+        return jsonify({"error": f"Erreur lors de la recuperation du JSON : {str(e)}"}), 500
 
 
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
