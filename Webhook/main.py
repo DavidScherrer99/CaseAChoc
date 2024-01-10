@@ -6,25 +6,39 @@ import hashlib
 from binascii import hexlify
 from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
+from stomp import Connection11
 
 app = Flask(__name__)
 
 SECRET_KEY = b"secret"
 PETZI_DEFAULT_VERSION = "2"
 
-app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tickets.db'
 db = SQLAlchemy(app)
+
+ACTIVEMQ_HOST = 'localhost'
+ACTIVEMQ_PORT = 61613
+ACTIVEMQ_TOPIC = '/topic/tickets'
+
+conn = Connection11([(ACTIVEMQ_HOST, ACTIVEMQ_PORT)])
+conn.connect(wait=True, headers={'admin': 'admin'})
 
 class JsonStorage(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     value = db.Column(db.String)
+
+def send_ticket_created_message(ticket_data):
+
+    ticket_json = json.dumps(ticket_data)
+
+    conn.send(body=ticket_json, destination=ACTIVEMQ_TOPIC)
 
 def save_json_to_DB(json_data):
     try:
         new_json_storage = JsonStorage(value=json.dumps(json_data))
         db.session.add(new_json_storage)
         db.session.commit()
+        send_ticket_created_message(json_data)
         return jsonify({"message": "JSON enregistré avec succès"}), 200
     except Exception as e:
         return jsonify({"error": f"Erreur lors de l'enregistrement du JSON : {str(e)}"}), 500
@@ -33,7 +47,7 @@ def get_json_from_DB(id):
     try:
         json_storage = db.session.get(JsonStorage, id)
         if json_storage:
-            return json_storage.value, 200
+            return json_storage.value
         else:
             return {"error": f"Aucune donnée trouvée avec l'id: {id}"}, 404
     except Exception as e:
