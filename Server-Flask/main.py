@@ -1,12 +1,14 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, Response, request
 import stomp
 import threading
 import json
+from queue import Queue
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
-# Global variable to store received tickets
-tickets = []
+tickets_queue = Queue()
 
 class TicketSubscriber(stomp.ConnectionListener, threading.Thread):
     def __init__(self, connection, topic):
@@ -17,8 +19,8 @@ class TicketSubscriber(stomp.ConnectionListener, threading.Thread):
     def on_message(self, message):
         # Process the received message and append to tickets list
         json_string = message.body
-        ticket_data = json.loads(json_string)
-        tickets.append(ticket_data)
+        tickets_data = json.loads(json_string)
+        tickets_queue.put(tickets_data)
 
     def run(self):
         self.connection.set_listener('', self)
@@ -37,11 +39,24 @@ subscriber = TicketSubscriber(conn, active_mq_topic)
 # Start the subscriber thread
 subscriber.start()
 
-# Flask route to render the tickets
+def event_stream():
+    while True:
+        if tickets_queue.empty() == False:   
+            # Retrieve ticket data from the queue with a timeout
+            tickets_data = tickets_queue.get(timeout=1)
+            # Convert ticket data to JSON-formatted string
+            json_string = json.dumps(tickets_data)
+            # Send the JSON data to clients
+            yield f"data: {json_string}\n\n"
+        
+
 @app.route('/')
 def index():
-    global tickets  # Make sure to use the global variable
-    return render_template('index.html', tickets=tickets)
+    return ""
+
+@app.route('/tickets')
+def sse():
+    return Response(event_stream(), content_type='text/event-stream')
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(debug=True, threaded=True, port=5001)

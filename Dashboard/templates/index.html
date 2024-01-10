@@ -2,16 +2,81 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Tickets</title>
+    <title>Ticket Dashboard</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+        }
+
+        #dashboard {
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .stat-container {
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f4;
+            border-radius: 10px;
+            width: 200px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Real-Time Tickets</h1>
-    <ul>
-        {% for ticket in tickets %}
-            <li>{{ ticket }}</li>
-        {% endfor %}
-    </ul>
+
+<div id="dashboard">
+    <div id="ticketCount" class="stat-container">
+        <h2>Tickets</h2>
+        <p id="ticketCountValue">0</p>
+    </div>
+    <div id="totalAmount" class="stat-container">
+        <h2>Total Amount</h2>
+        <p id="totalAmountValue">0.00 CHF</p>
+    </div>
+</div>
+
+<script>
+var eventSource = new EventSource('http://127.0.0.1:5001/tickets');
+var ticketCountValue = document.getElementById('ticketCountValue');
+var totalAmountValue = document.getElementById('totalAmountValue');
+
+var ticketCount = 0;
+var totalAmount = 0;
+var selectedEvent = 'ticket_created'; // Set the desired event name here
+
+function updateDashboard() {
+    ticketCount = 0;
+    totalAmount = 0;
+
+    // Update the displayed values
+    ticketCountValue.textContent = ticketCount;
+    totalAmountValue.textContent = totalAmount.toFixed(2)+" CHF";
+}
+
+eventSource.onmessage = function(event) {
+    var eventData = JSON.parse(event.data);
+
+    // Check if the received event matches the selected event
+    if (eventData.event === selectedEvent) {
+        ticketCount += 1; // Assuming one ticket is created per event
+        totalAmount += parseFloat(eventData.details.ticket.price.amount);
+
+        // Update the displayed values
+        ticketCountValue.textContent = ticketCount;
+        totalAmountValue.textContent = totalAmount.toFixed(2)+" CHF";
+    }
+};
+
+eventSource.onopen = function(event) {
+    console.log('Connection opened');
+};
+
+eventSource.onerror = function(event) {
+    console.error('Error occurred:', event);
+};
+</script>
+
 </body>
 </html>
