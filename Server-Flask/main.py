@@ -53,7 +53,7 @@ def event_stream():
     while True:
         if tickets_queue.empty() == False:   
             # Retrieve ticket data from the queue with a timeout
-            tickets_data = tickets_queue.get(timeout=1)
+            tickets_data = tickets_queue.get()
             # Convert ticket data to JSON-formatted string
             json_string = json.dumps(tickets_data)
             # Send the JSON data to clients
