@@ -1,0 +1,56 @@
+services:
+  activemq:
+    image: rmohr/activemq:latest
+    container_name: activemq_container
+    volumes:
+      - ./jetty-realm.properties:/opt/activemq/conf/jetty-realm.properties
+    ports:
+      - "61613:61613"
+      - "8161:8161"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8161"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  webhook:
+    image: caseachoc/webhook
+    container_name: webhook
+    build: 
+      context: ./webhook
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./instance:/app/instance
+    depends_on:
+      - dashboard
+
+  server-flask:
+    image: caseachoc/server-flask
+    container_name: server-flask
+    build: 
+      context: ./server-flask
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    depends_on:
+      activemq:
+        condition: service_healthy
+
+  dashboard:
+    image: caseachoc/dashboard
+    container_name: dashboard
+    build: 
+      context: ./dashboard
+      dockerfile: Dockerfile
+    volumes:
+      - ./Dashboard:/app
+    ports:
+      - "5002:5002"
+    depends_on:
+      - server-flask
+        
+networks:
+  CaseAChoc:
+    driver: bridge

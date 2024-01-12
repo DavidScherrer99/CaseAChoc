@@ -22,19 +22,41 @@
             border-radius: 10px;
             width: 200px;
         }
+
+        .image {
+            width: 200px;
+            height: 200px;
+        }
     </style>
 </head>
 <body>
-
 <div id="dashboard">
     <div id="ticketCount" class="stat-container">
         <h2>Tickets</h2>
         <p id="ticketCountValue">0</p>
     </div>
+    <div>
+        <img class="image" src="{{ url_for('static', filename='logo.jpg') }}" alt="Your Image" align="center">
+    </div>
     <div id="totalAmount" class="stat-container">
         <h2>Total Amount</h2>
         <p id="totalAmountValue">0.00 CHF</p>
     </div>
+</div>
+<div>
+    <h1 align="center">Historique des tickets</h1>
+    <table id="tickets" border="1" align="center">
+        <thead>
+            <tr>
+                <th>Event</th>
+                <th>Type</th>
+                <th>Price</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Les lignes du tableau seront ajoutées ici dynamiquement -->
+        </tbody>
+    </table>
 </div>
 
 <script>
@@ -55,6 +77,21 @@ function updateDashboard() {
     totalAmountValue.textContent = totalAmount.toFixed(2)+" CHF";
 }
 
+function ajouterTicket(eventData) {
+    var tbody = document.getElementById('tickets').getElementsByTagName('tbody')[0];
+
+            
+            var newRow = tbody.insertRow();
+
+            var cell1 = newRow.insertCell(0);
+            var cell2 = newRow.insertCell(1);
+            var cell3 = newRow.insertCell(2);
+
+            cell1.innerHTML = eventData.details.ticket.event;
+            cell2.innerHTML = eventData.details.ticket.type; 
+            cell3.innerHTML = eventData.details.ticket.price.amount;
+}
+
 eventSource.onmessage = function(event) {
     var eventData = JSON.parse(event.data);
 
@@ -66,6 +103,7 @@ eventSource.onmessage = function(event) {
         // Update the displayed values
         ticketCountValue.textContent = ticketCount;
         totalAmountValue.textContent = totalAmount.toFixed(2)+" CHF";
+        ajouterTicket(eventData);
     }
 };
 

@@ -9,6 +9,8 @@ app = Flask(__name__)
 CORS(app)
 
 tickets_queue = Queue()
+conn = None
+subscription_created = False
 
 class TicketSubscriber(stomp.ConnectionListener, threading.Thread):
     def __init__(self, connection, topic):
@@ -24,20 +26,28 @@ class TicketSubscriber(stomp.ConnectionListener, threading.Thread):
 
     def run(self):
         self.connection.set_listener('', self)
-        self.connection.connect('admin', 'admin', wait=True)
-        self.connection.subscribe(destination=self.topic, id=1, ack='auto')
+        self.connection.connect('consumer', 'consumer', wait=True)
+        self.connection.subscribe(destination=self.topic, id=1, ack='auto', headers={'activemq.subscriptionName': 'consumer'})
 
 # ActiveMQ configuration
-active_mq_host = 'localhost'
+active_mq_host = 'activemq_container'
 active_mq_port = 61613
 active_mq_topic = '/topic/tickets'
 
-# Create ActiveMQ connection
-conn = stomp.Connection([(active_mq_host, active_mq_port)])
-subscriber = TicketSubscriber(conn, active_mq_topic)
+def setup_active_mq():
+    global conn, subscription_created
+    # Create ActiveMQ connection only if not already created
+    if not conn:
+        conn = stomp.Connection([(active_mq_host, active_mq_port)])
+        # Create and start the subscriber only if the subscription hasn't been created
+        if not subscription_created:
+            subscriber = TicketSubscriber(conn, active_mq_topic)
+            subscriber.start()
+            subscription_created = True
 
-# Start the subscriber thread
-subscriber.start()
+@app.before_request
+def before_request():
+    setup_active_mq()
 
 def event_stream():
     while True:
@@ -59,4 +69,4 @@ def sse():
     return Response(event_stream(), content_type='text/event-stream')
 
 if __name__ == '__main__':
-    app.run(debug=True, threaded=True, port=5001)
+    app.run(debug=True, host="0.0.0.0", threaded=True, port=5001)

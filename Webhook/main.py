@@ -16,12 +16,12 @@ PETZI_DEFAULT_VERSION = "2"
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tickets.db'
 db = SQLAlchemy(app)
 
-ACTIVEMQ_HOST = 'localhost'
+ACTIVEMQ_HOST = 'activemq_container'
 ACTIVEMQ_PORT = 61613
 ACTIVEMQ_TOPIC = '/topic/tickets'
 
 conn = Connection11([(ACTIVEMQ_HOST, ACTIVEMQ_PORT)])
-conn.connect(wait=True, headers={'admin': 'admin'})
+conn.connect(wait=True, headers={'producer': 'producer'})
 
 class JsonStorage(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -52,6 +52,15 @@ def get_json_from_DB(id):
             return {"error": f"Aucune donnée trouvée avec l'id: {id}"}, 404
     except Exception as e:
         return {"error": f"Erreur lors de la récupération du JSON : {str(e)}"}, 500
+
+def get_all_json_from_DB_and_send_messages():
+    try:
+        all_json_storage = JsonStorage.query.all()
+        if all_json_storage:
+            for json_storage in all_json_storage:
+                send_ticket_created_message(json.loads(json_storage.value))
+    except Exception as e:
+        return {"error": f"Erreur lors de la récupération et de l'envoi des messages depuis la base de données : {str(e)}"}, 500
 
 
 def is_signature_valid(payload, received_signature_header):
@@ -106,7 +115,7 @@ def save_json():
         try:
             json_data = json.loads(request.get_data().decode("utf-8"))
             save_json_to_DB(json_data)
-            return jsonify({"message": "JSON enregistré avec succès"}), 200
+            return "JSON enregistré avec succès", 200
         except Exception as e:
             return jsonify({"error": f"Erreur lors de l'enregistrement du JSON : {str(e)}"}), 500
     except Exception as e:
@@ -126,6 +135,7 @@ def get_json(id):
 
 
 if __name__ == "__main__":
+    get_all_json_from_DB_and_send_messages()
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5000)
