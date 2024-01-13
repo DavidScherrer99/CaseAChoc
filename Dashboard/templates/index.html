@@ -62,6 +62,7 @@
 </div>
 
 <script>
+    
 var eventSource = new EventSource('http://127.0.0.1:5001/tickets');
 var ticketCountValue = document.getElementById('ticketCountValue');
 var totalAmountValue = document.getElementById('totalAmountValue');
@@ -120,6 +121,8 @@ eventSource.onopen = function(event) {
 eventSource.onerror = function(event) {
     console.error('Error occurred:', event);
 };
+
+
 </script>
 
 </body>
